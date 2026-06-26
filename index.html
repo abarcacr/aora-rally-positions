@@ -309,8 +309,8 @@ let localOnlyMode = true;
 let accessGranted = false;
 const ACCESS_PASSWORD_KEY = 'rally_access_password';
 const ACCESS_GRANTED_KEY = 'rally_access_granted';
-const DEFAULT_ACCESS_PASSWORD = 'rally2026';
-const APP_VERSION = '2026-06-26-1135';
+const DEFAULT_ACCESS_PASSWORD = 'jdrally2026';
+const APP_VERSION = '2026-06-26-1150';
 const SYNC_ENDPOINT = 'https://script.google.com/macros/s/AKfycbyJqVD9XWlL7tLTn5IFSG91sNuPU7ozD1xO9am04DVDzYliGgzYhjn-dsVEFGI-rBA/exec';
 const SYNC_ENDPOINT_KEY = 'rally_sync_endpoint';
 const ADMIN_PASSWORD_SESSION_KEY = 'rally_admin_password_session';
@@ -395,11 +395,29 @@ function enableAdminFeatures(){
   document.getElementById('btn-signout').style.display='';
   document.getElementById('btn-save').style.display='';
 }
-function submitAccess(){
+async function submitAccess(){
   const val=document.getElementById('access-password').value.trim();
-  if((isSharedMode() && val.length > 0) || val === getAccessPassword()){
+  if(!val){
+    alert('Ingresa la clave admin.');
+    return;
+  }
+  let ok=false;
+  if(isSharedMode()){
+    syncStatus('Validando clave admin...', 'ti-lock', 'var(--ta)');
+    try{
+      const res=await sharedJsonp('auth', {password:val});
+      ok=!!res?.ok;
+    }catch(e){
+      ok=false;
+      syncStatus('No se pudo validar la clave', 'ti-lock-off', 'var(--tw)');
+    }
+  } else {
+    ok = val === getAccessPassword();
+  }
+  if(ok){
     accessGranted=true;
-    localStorage.setItem(ACCESS_GRANTED_KEY,'1');
+    if(isSharedMode()) localStorage.removeItem(ACCESS_GRANTED_KEY);
+    else localStorage.setItem(ACCESS_GRANTED_KEY,'1');
     sessionStorage.setItem(ADMIN_PASSWORD_SESSION_KEY, val);
     document.getElementById('access-password').value='';
     enableAdminFeatures();
@@ -412,7 +430,7 @@ function submitAccess(){
 function setLocalMode(message='Modo seguro local · cambios guardados en este navegador') {
   localOnlyMode = true;
   driveReady = true;
-  if(accessGranted || localStorage.getItem(ACCESS_GRANTED_KEY)==='1'){
+  if(accessGranted || (!isSharedMode() && localStorage.getItem(ACCESS_GRANTED_KEY)==='1')){
     accessGranted=true;
     enableAdminFeatures();
     syncStatus(isSharedMode() ? 'Modo admin · guardado compartido' : 'Modo admin · cambios guardados localmente', 'ti-lock-open', 'var(--tsu)');
@@ -1205,7 +1223,7 @@ function changeAccessPassword(){
     return;
   }
   setAccessPassword(next);
-  localStorage.setItem(ACCESS_GRANTED_KEY,'1');
+  if(!isSharedMode()) localStorage.setItem(ACCESS_GRANTED_KEY,'1');
   ['cfg-pass-current','cfg-pass-new','cfg-pass-confirm'].forEach(id=>document.getElementById(id).value='');
   syncStatus('Clave admin actualizada', 'ti-key', 'var(--tsu)');
   alert('Clave actualizada.');
