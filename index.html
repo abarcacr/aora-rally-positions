@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Campeonato de Rally</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <style>
@@ -194,6 +197,7 @@ tbody tr:hover td{background:#f8fafc}
       <button class="btn bsm" id="btn-signin" onclick="driveSignIn()" style="display:none"><i class="ti ti-lock" aria-hidden="true"></i> Admin</button>
       <button class="btn bsm" id="btn-signout" onclick="driveSignOut()" style="display:none"><i class="ti ti-logout" aria-hidden="true"></i> Salir de admin</button>
       <button class="btn bsm" id="btn-save" onclick="driveSave()" style="display:none"><i class="ti ti-device-floppy" aria-hidden="true"></i> Guardar ahora</button>
+      <button class="btn bsm" onclick="hardRefresh()"><i class="ti ti-refresh" aria-hidden="true"></i> Actualizar</button>
     </div>
   </div>
   <div class="content">
@@ -306,9 +310,20 @@ let accessGranted = false;
 const ACCESS_PASSWORD_KEY = 'rally_access_password';
 const ACCESS_GRANTED_KEY = 'rally_access_granted';
 const DEFAULT_ACCESS_PASSWORD = 'rally2026';
+const APP_VERSION = '2026-06-26-1045';
 const SYNC_ENDPOINT = 'https://script.google.com/macros/s/AKfycbyJqVD9XWlL7tLTn5IFSG91sNuPU7ozD1xO9am04DVDzYliGgzYhjn-dsVEFGI-rBA/exec';
 const SYNC_ENDPOINT_KEY = 'rally_sync_endpoint';
 const ADMIN_PASSWORD_SESSION_KEY = 'rally_admin_password_session';
+
+function ensureFreshVersion(){
+  const url=new URL(window.location.href);
+  if(url.protocol === 'file:') return;
+  if(url.searchParams.get('appv') !== APP_VERSION){
+    url.searchParams.set('appv', APP_VERSION);
+    window.location.replace(url.toString());
+  }
+}
+ensureFreshVersion();
 
 function syncStatus(text, icon='ti-cloud', color='var(--ts)') {
   document.getElementById('sync-text').textContent = text;
@@ -333,6 +348,15 @@ function setSyncEndpoint(value){
 }
 function isSharedMode(){
   return !!getSyncEndpoint();
+}
+function hardRefresh(){
+  try{
+    sessionStorage.setItem('rally_force_refresh', String(Date.now()));
+  }catch(e){}
+  const url=new URL(window.location.href);
+  url.searchParams.set('appv', APP_VERSION);
+  url.searchParams.set('refresh', String(Date.now()));
+  window.location.replace(url.toString());
 }
 function showAccessOverlay(){
   document.getElementById('access-overlay').style.display='flex';
