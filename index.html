@@ -28,7 +28,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .app{max-width:1040px;margin:0 auto;padding:0 0 2rem}
 /* ── Header ── */
 .site-header{background:#fff;border-bottom:1px solid var(--b);padding:0 1.5rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;min-height:72px}
-.site-header .logo{height:52px;width:auto;object-fit:contain}
+.site-header .logo{height:72px;width:auto;object-fit:contain;max-width:180px}
 .site-header h1{font-size:16px;font-weight:600;color:var(--tp);letter-spacing:.01em;text-align:center;flex:1}
 /* ── Nav ── */
 .nav-wrap{background:#fff;border-bottom:1px solid var(--b);padding:0 1.5rem}
@@ -50,6 +50,13 @@ input:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 
 .bsm{padding:4px 10px;font-size:12px}
 /* ── Tables ── */
 .tw{overflow-x:auto;border-radius:8px;border:1px solid var(--b)}
+.st-table{width:100%;border-collapse:collapse;font-size:13px;background:#fff;table-layout:auto}
+.col-pos{width:44px;text-align:center;white-space:nowrap}
+.col-name{text-align:left;white-space:nowrap}
+.col-cat{width:90px;text-align:center;white-space:nowrap}
+.col-date{width:70px;text-align:center;white-space:nowrap;min-width:52px}
+.col-total{width:56px;text-align:center;font-weight:700;color:var(--accent);white-space:nowrap}
+.nt-cell{color:var(--td);font-weight:700;font-size:12px}
 table{width:100%;border-collapse:collapse;font-size:13px;background:#fff}
 thead{background:#f8fafc}
 th{text-align:left;padding:9px 12px;font-weight:600;color:var(--ts);border-bottom:1px solid var(--b);font-size:11px;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
@@ -89,13 +96,44 @@ tbody tr:hover td{background:#f8fafc}
 .er{display:flex;gap:8px;margin-top:1.25rem;flex-wrap:wrap}
 @media(max-width:560px){.g2{grid-template-columns:1fr}.g3{grid-template-columns:1fr 1fr}}
 @media print{
-  body{background:#fff}
-  .nav-wrap,.er,.btn,.rsel,.tabs,.bsm{display:none!important}
-  .site-header{border-bottom:2px solid #000;padding:8px 16px}
-  .site-header .logo{height:48px}
-  .card{box-shadow:none;border:1px solid #ccc}
-  .tw{border:1px solid #ccc}
-  th{background:#f0f0f0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  body{background:#fff;font-size:11px}
+  .nav-wrap,.sync-bar,.er,.rsel,.tabs,.bsm,#sync-bar,.btn{display:none!important}
+  .app{max-width:100%;padding:0}
+  .content{padding:.5rem}
+  .site-header{
+    border-bottom:2.5px solid #1d4ed8;
+    padding:10px 20px;
+    display:flex!important;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:12px
+  }
+  .site-header .logo{height:64px!important;max-width:160px!important;display:block!important}
+  .site-header h1{font-size:18px;font-weight:700;color:#0f1117;text-align:center;flex:1}
+  .card{box-shadow:none;border:none;padding:.25rem 0;margin-bottom:.5rem}
+  .tw{border:1px solid #d1d5db;border-radius:4px;overflow:visible}
+  .st-table{font-size:11px;page-break-inside:avoid}
+  thead{background:#1d4ed8!important}
+  th{
+    background:#1d4ed8!important;
+    color:#fff!important;
+    padding:6px 8px!important;
+    font-size:10px!important;
+    border-bottom:none!important
+  }
+  td{padding:5px 8px!important;border-bottom:1px solid #f0f0f0!important}
+  tbody tr:nth-child(even) td{background:#f8fafc!important}
+  .badge.bg{background:#fef3c7!important;color:#b45309!important}
+  .badge.bsi{background:#f3f4f6!important;color:#374151!important}
+  .badge.bbr{background:#fef3c7!important;color:#92400e!important}
+  .badge.ba2{background:#eff6ff!important;color:#1d4ed8!important}
+  .pos-num{background:#f3f4f6!important;color:#374151!important}
+  .col-total{color:#1d4ed8!important}
+  .nt-cell{color:#991b1b!important}
+  .cat-label{font-size:12px!important;padding:.5rem 0 .25rem!important;margin-top:.75rem!important;border-top:1.5px solid #1d4ed8!important;color:#1d4ed8!important}
+  .sec.on{display:block!important}
+  .ps-tag{display:none!important}
 }
 </style>
 </head>
@@ -110,8 +148,8 @@ tbody tr:hover td{background:#f8fafc}
     <nav role="tablist">
       <button class="nb on" onclick="show('standings',this)">Posiciones</button>
       <button class="nb" onclick="show('results',this)">Resultados por fecha</button>
-      <button class="nb" onclick="show('people',this)">Personas</button>
-      <button class="nb" onclick="show('config',this)">Configuración</button>
+      <button class="nb admin-only" onclick="show('people',this)" style="display:none">Personas</button>
+      <button class="nb admin-only" onclick="show('config',this)" style="display:none">Configuración</button>
     </nav>
   </div>
   <div id="sync-bar" style="background:#fff;border-bottom:1px solid var(--b);padding:6px 1.5rem;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:var(--ts)">
@@ -227,6 +265,7 @@ function initDrive() {
   gapi.load('client', async () => {
     await gapi.client.init({ discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'] });
     tokenClient = google.accounts.oauth2.initTokenClient({
+      redirect_uri: 'https://abarcacr.github.io/aora-rally-positions/',
       client_id: CLIENT_ID,
       scope: SCOPES,
       callback: async (resp) => {
@@ -234,6 +273,7 @@ function initDrive() {
         document.getElementById('btn-signin').style.display='none';
         document.getElementById('btn-signout').style.display='';
         document.getElementById('btn-save').style.display='';
+        document.querySelectorAll('.admin-only').forEach(el=>el.style.display='');
         driveReady = true;
         syncStatus('Buscando datos en Drive...', 'ti-cloud-search');
         await driveLoad();
@@ -263,6 +303,11 @@ function driveSignOut() {
   document.getElementById('btn-signin').style.display='';
   document.getElementById('btn-signout').style.display='none';
   document.getElementById('btn-save').style.display='none';
+  document.querySelectorAll('.admin-only').forEach(el=>el.style.display='none');
+  // Switch to standings if on admin tab
+  if(['people','config'].includes(currentSection)){
+    document.querySelector('.nb').click();
+  }
   syncStatus('Sesión cerrada', 'ti-cloud-off', 'var(--tm)');
 }
 
@@ -441,7 +486,9 @@ function save(){
 }
 
 // ── NAV ────────────────────────────────────────────────────────────────────
+let currentSection='standings';
 function show(id,btn){
+  currentSection=id;
   document.querySelectorAll('.sec').forEach(s=>s.classList.remove('on'));
   document.getElementById('sec-'+id).classList.add('on');
   document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
@@ -575,40 +622,35 @@ function renderSt(){
 }
 
 // scope-aware: rows already carry the right pts (gen or cat), one column per rally
+function colName(r){ return S.rallyNames&&S.rallyNames[r-1]?S.rallyNames[r-1]:`F${r}`; }
+
 function buildTable(rows,label,cols,hideCat){
   if(!rows.length) return '<p style="color:var(--tm);padding:8px 0">Sin participantes con resultados.</p>';
-  // In general view (hideCat=false), hide Side by Side entirely
   const genExclude=S.genExcludeCats||['Side by Side'];
   const visRows = hideCat ? rows : rows.filter(r=>!genExclude.includes(r.cat));
   if(!visRows.length) return '<p style="color:var(--tm);padding:8px 0">Sin participantes con resultados.</p>';
-  const numCols=(hideCat?2:3)+cols.length+1;
-  let h=`<div class="tw"><table style="table-layout:fixed;width:100%"><thead><tr>
-    <th style="text-align:center;width:44px">Pos</th>
-    <th style="text-align:left">Nombre</th>`;
-  if(!hideCat) h+=`<th style="text-align:center;width:100px">Cat</th>`;
-  cols.forEach(r=>{ const name=S.rallyNames&&S.rallyNames[r-1]?S.rallyNames[r-1]:`F${r}`; h+=`<th style="text-align:center;width:72px">${name}</th>`; });
-  h+=`<th style="text-align:center;width:56px">Total</th></tr></thead><tbody>`;
+  // Use auto layout so name col is as wide as needed but date cols are compact + equal
+  let h=`<div class="tw"><table class="st-table"><thead><tr>
+    <th class="col-pos">Pos</th>
+    <th class="col-name">${label}</th>`;
+  if(!hideCat) h+=`<th class="col-cat">Cat</th>`;
+  cols.forEach(r=>h+=`<th class="col-date">${colName(r)}</th>`);
+  h+=`<th class="col-total">Total</th></tr></thead><tbody>`;
   visRows.forEach((row,i)=>{
     const m=i===0?'badge bg':i===1?'badge bsi':i===2?'badge bbr':'';
     const rp=row.pts.byRally||{};
-    h+=`<tr><td style="text-align:center">${m?`<span class="${m}">${i+1}</span>`:`<span class="pos-num">${i+1}</span>`}</td><td style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${row.name}</td>`;
-    if(!hideCat) h+=`<td style="text-align:center"><span class="badge ba2">${row.cat||'-'}</span></td>`;
+    h+=`<tr>
+      <td class="col-pos">${m?`<span class="${m}">${i+1}</span>`:`<span class="pos-num">${i+1}</span>`}</td>
+      <td class="col-name" style="font-weight:500">${row.name}</td>`;
+    if(!hideCat) h+=`<td class="col-cat"><span class="badge ba2">${row.cat||'-'}</span></td>`;
     cols.forEach(r=>{
       const p=rp[r];
-      if(p&&p.nt){
-        h+=`<td style="text-align:center;color:var(--td);font-size:12px;font-weight:500">NT</td>`;
-        return;
-      }
-      const race=p?.race||0, ps=p?.ps||0;
-      const tot=race+ps;
-      let cell='-';
-      if(tot){
-        cell=`${tot}`;
-        if(ps) cell+=`<span class="ps-tag">(+${ps})</span>`;
-      }
-      h+=`<td style="text-align:center">${cell}</td>`;
+      if(p&&p.nt){ h+=`<td class="col-date nt-cell">NT</td>`; return; }
+      const race=p?.race||0, ps=p?.ps||0, tot=race+ps;
+      let cell=tot?`${tot}${ps?`<span class="ps-tag"> (+${ps})</span>`:''}`:'-';
+      h+=`<td class="col-date">${cell}</td>`;
     });
-    h+=`<td style="text-align:center;font-weight:500;color:var(--ta)">${row.pts.total||'-'}</td></tr>`;
+    h+=`<td class="col-total">${row.pts.total||'-'}</td></tr>`;
   });
   return h+`</tbody></table></div>`;
 }
@@ -753,7 +795,7 @@ function renderRallyForm(){
           <button class="btn bsm" onclick="mDown('${crew.id}')"><i class="ti ti-chevron-down" aria-hidden="true"></i></button>
         </td>
         <td style="display:flex;gap:4px">
-          <button class="btn bsm ${crew.status==='NT'?'bd2':''}" onclick="toggleNT('${crew.id}')" title="No terminó" style="${crew.status==='NT'?'font-weight:600':''}">${crew.status==='NT'?'NT':'—'}</button>
+          <button class="btn bsm ${crew.status==='NT'?'bd2':''}" onclick="toggleNT('${crew.id}')" title="No terminó (clic para alternar)" style="${crew.status==='NT'?'font-weight:700;letter-spacing:.03em':''}">${crew.status==='NT'?'NT':'—'}</button>
           <button class="btn bsm bd2" onclick="removeCrew('${crew.id}')"><i class="ti ti-trash" aria-hidden="true"></i></button>
         </td>
       </tr>`;
@@ -950,46 +992,48 @@ function resetAll(){
 function exportCSV(){
   const {dp,cp}=calcPts();
   const cols=Array.from({length:S.numRallies},(_,i)=>i+1);
+  const genExclude=S.genExcludeCats||['Side by Side'];
   const didDrive=new Set(), didCopilot=new Set();
   for(let r=1;r<=S.numRallies;r++){
     (S.results[r]?.crews||[]).forEach(c=>{ didDrive.add(c.driverId); if(c.copilotId) didCopilot.add(c.copilotId); });
   }
-  const rPts=(byRally,r)=>{ const p=byRally[r]; return p?(p.race||0)+(p.ps||0):0; };
+  const rPts=(byRally,r)=>{ const p=byRally[r]; return p&&!p.nt?(p.race||0)+(p.ps||0):p&&p.nt?'NT':0; };
+  const hdr=(label,cats)=>{ let h=`${label}\nPos,Nombre`; if(cats) h+=`,Categoría`; cols.forEach(r=>h+=`,${colName(r)}`); return h+`,PS,Total\n`; };
 
-  let csv=`PILOTOS — GENERAL\nPos,Nombre,Categoría`;
-  cols.forEach(r=>csv+=`,F${r}`);
-  csv+=`,PS,Total\n`;
-  S.people.filter(p=>didDrive.has(p.id))
+  let csv='';
+
+  // ── Pilotos General (sin Side by Side) ──
+  csv+=hdr('PILOTOS — GENERAL',false);
+  S.people.filter(p=>didDrive.has(p.id)&&!genExclude.includes(driverCat(p.id)))
     .map(p=>({...p,cat:driverCat(p.id),g:dp[p.id]?.gen||{total:0,ps:0,byRally:{}}}))
     .sort((a,b)=>b.g.total-a.g.total)
-    .forEach((p,i)=>{ csv+=`${i+1},${p.name},${p.cat}`; cols.forEach(r=>csv+=`,${rPts(p.g.byRally,r)}`); csv+=`,${p.g.ps},${p.g.total}\n`; });
+    .forEach((p,i)=>{ csv+=`${i+1},"${p.name}"`; cols.forEach(r=>csv+=`,${rPts(p.g.byRally,r)}`); csv+=`,${p.g.ps},${p.g.total}\n`; });
 
-  csv+=`\nPILOTOS — CATEGORÍA\nPos,Nombre,Categoría`;
-  cols.forEach(r=>csv+=`,F${r}`);
-  csv+=`,PS,Total\n`;
+  // ── Pilotos por Categoría — una sección por categoría ──
   S.cats.forEach(cat=>{
     const rows=S.people.filter(p=>didDrive.has(p.id)&&driverCat(p.id)===cat)
       .map(p=>({...p,c:dp[p.id]?.cat||{total:0,ps:0,byRally:{}}}))
       .sort((a,b)=>b.c.total-a.c.total);
-    rows.forEach((p,i)=>{ csv+=`${i+1},${p.name},${cat}`; cols.forEach(r=>csv+=`,${rPts(p.c.byRally,r)}`); csv+=`,${p.c.ps},${p.c.total}\n`; });
+    if(!rows.length) return;
+    csv+=`\n${hdr('PILOTOS — '+cat,false)}`;
+    rows.forEach((p,i)=>{ csv+=`${i+1},"${p.name}"`; cols.forEach(r=>csv+=`,${rPts(p.c.byRally,r)}`); csv+=`,${p.c.ps},${p.c.total}\n`; });
   });
 
-  csv+=`\nCOPILOTOS — GENERAL\nPos,Nombre,Categoría`;
-  cols.forEach(r=>csv+=`,F${r}`);
-  csv+=`,PS,Total\n`;
-  S.people.filter(p=>didCopilot.has(p.id))
+  // ── Copilotos General (sin Side by Side) ──
+  csv+=`\n${hdr('COPILOTOS — GENERAL',false)}`;
+  S.people.filter(p=>didCopilot.has(p.id)&&!genExclude.includes(copilotCat(p.id)))
     .map(p=>({...p,cat:copilotCat(p.id),g:cp[p.id]?.gen||{total:0,ps:0,byRally:{}}}))
     .sort((a,b)=>b.g.total-a.g.total)
-    .forEach((p,i)=>{ csv+=`${i+1},${p.name},${p.cat}`; cols.forEach(r=>csv+=`,${rPts(p.g.byRally,r)}`); csv+=`,${p.g.ps},${p.g.total}\n`; });
+    .forEach((p,i)=>{ csv+=`${i+1},"${p.name}"`; cols.forEach(r=>csv+=`,${rPts(p.g.byRally,r)}`); csv+=`,${p.g.ps},${p.g.total}\n`; });
 
-  csv+=`\nCOPILOTOS — CATEGORÍA\nPos,Nombre,Categoría`;
-  cols.forEach(r=>csv+=`,F${r}`);
-  csv+=`,PS,Total\n`;
+  // ── Copilotos por Categoría ──
   S.cats.forEach(cat=>{
     const rows=S.people.filter(p=>didCopilot.has(p.id)&&copilotCat(p.id)===cat)
       .map(p=>({...p,c:cp[p.id]?.cat||{total:0,ps:0,byRally:{}}}))
       .sort((a,b)=>b.c.total-a.c.total);
-    rows.forEach((p,i)=>{ csv+=`${i+1},${p.name},${cat}`; cols.forEach(r=>csv+=`,${rPts(p.c.byRally,r)}`); csv+=`,${p.c.ps},${p.c.total}\n`; });
+    if(!rows.length) return;
+    csv+=`\n${hdr('COPILOTOS — '+cat,false)}`;
+    rows.forEach((p,i)=>{ csv+=`${i+1},"${p.name}"`; cols.forEach(r=>csv+=`,${rPts(p.c.byRally,r)}`); csv+=`,${p.c.ps},${p.c.total}\n`; });
   });
 
   const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
