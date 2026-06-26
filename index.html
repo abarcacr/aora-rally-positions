@@ -434,6 +434,7 @@ function def(){
     cats:['R4','N3','N2','Side by Side'],
     genExcludeCats:['Side by Side'],
     rallyNames:['','','','',''],
+    rallyNotes:['','','','',''],
     // people: [{id,name,note}]
     people: [
       {id:'p1',name:'Alberto Araya',note:''},
@@ -552,13 +553,17 @@ function calcPts(){
 
     const give=(cid,scope,pts,isPS)=>{
       const crew=crews.find(c=>c.id===cid); if(!crew||!pts) return;
+      // Half points: floor to nearest integer
+      const finalPts = crew.half ? pts/2 : pts;
+      if(!finalPts && !crew.half) return;
       [[dp,crew.driverId],[cp,crew.copilotId]].forEach(([tgt,pid])=>{
         if(!pid||!tgt[pid]) return;
         const s=tgt[pid][scope];
-        s.total+=pts;
-        if(!s.byRally[r]) s.byRally[r]={race:0,ps:0};
-        if(isPS){ s.ps+=pts; s.byRally[r].ps+=pts; }
-        else { s.byRally[r].race+=pts; }
+        s.total+=finalPts;
+        if(!s.byRally[r]) s.byRally[r]={race:0,ps:0,half:false};
+        s.byRally[r].half = crew.half||false;
+        if(isPS){ s.ps+=finalPts; s.byRally[r].ps+=finalPts; }
+        else { s.byRally[r].race+=finalPts; }
       });
     };
 
@@ -676,11 +681,14 @@ function buildTable(rows,label,cols,hideCat){
     cols.forEach(r=>{
       const p=rp[r];
       if(p&&p.nt){ h+=`<td class="col-date nt-cell">NT</td>`; return; }
-      const race=p?.race||0, ps=p?.ps||0;
-      let cell=race>0?`${race}${ps?`<span class="ps-tag"> (+${ps})</span>`:''}`:(ps>0?`0<span class="ps-tag"> (+${ps})</span>`:'-');
+      const race=p?.race||0, ps=p?.ps||0, half=p?.half||false;
+      const fmt=n=>Number.isInteger(n)?String(n):n.toFixed(1);
+      let cell;
+      if(!race && !ps) cell='-';
+      else cell=`${race>0?fmt(race):'0'}${ps?`<span class="ps-tag"> (+${fmt(ps)})</span>`:''}${half?`<span style="font-size:9px;color:var(--tm);margin-left:2px">½</span>`:''}`;
       h+=`<td class="col-date">${cell}</td>`;
     });
-    h+=`<td class="col-total">${row.pts.total||'-'}</td></tr>`;
+    const tot=row.pts.total; h+=`<td class="col-total">${tot?(Number.isInteger(tot)?tot:tot.toFixed(1)):'-'}</td></tr>`;
   });
   return h+`</tbody></table></div>`;
 }
@@ -785,24 +793,31 @@ function renderRallyForm(){
   const pOpts=(sel)=>'<option value="">— Sin '+sel+' —</option>'+pSorted.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
 
   // ── Formulario: agregar tripulación ──
-  let h=`<div class="card"><h3>Agregar tripulación — Fecha ${curR}</h3>`;
-  h+=`<div class="g3" style="margin-bottom:10px">
-    <div class="ig"><label>Piloto</label><select id="nc-driver">${pOpts('piloto')}</select></div>
-    <div class="ig"><label>Copiloto</label><select id="nc-copilot">${pOpts('copiloto')}</select></div>
-    <div class="ig"><label>Categoría</label><select id="nc-cat"><option value="">Seleccionar...</option>${S.cats.map(c=>`<option>${c}</option>`).join('')}</select></div>
-  </div>
-  <div class="g2" style="margin-bottom:12px;max-width:400px">
-    <div class="ig"><label>Número</label><input id="nc-num" type="number" placeholder="Ej: 12"></div>
-  </div>
-  <button class="btn bp" onclick="addCrew()"><i class="ti ti-plus" aria-hidden="true"></i> Agregar tripulación</button></div>`;
+  // Note for this rally
+  const rallyNote = S.rallyNotes&&S.rallyNotes[curR-1]||'';
+  let h=`<div class="card" style="padding:.75rem 1rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px">
+      <h3 style="margin:0">Fecha ${curR}${(S.rallyNames&&S.rallyNames[curR-1])?' — '+S.rallyNames[curR-1]:''}</h3>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px">
+      <div class="ig" style="flex:2;min-width:120px"><label>Piloto</label><select id="nc-driver">${pOpts('piloto')}</select></div>
+      <div class="ig" style="flex:2;min-width:120px"><label>Copiloto</label><select id="nc-copilot">${pOpts('copiloto')}</select></div>
+      <div class="ig" style="flex:1;min-width:90px"><label>Categoría</label><select id="nc-cat"><option value="">Cat...</option>${S.cats.map(c=>`<option>${c}</option>`).join('')}</select></div>
+      <div class="ig" style="width:72px"><label>Número</label><input id="nc-num" type="number" placeholder="#" style="text-align:center"></div>
+      <button class="btn bp" onclick="addCrew()" style="align-self:flex-end"><i class="ti ti-plus" aria-hidden="true"></i> Agregar</button>
+    </div>
+    <div class="ig">
+      <label>Notas de esta fecha</label>
+      <textarea id="rally-note" rows="2" oninput="saveNote(${curR},this.value)" placeholder="Ej: Pista mojada, abandono por accidente en el km 14..." style="border:1px solid var(--b);border-radius:var(--r);padding:7px 10px;font-size:12px;font-family:inherit;background:#fff;color:var(--tp);width:100%;resize:vertical">${rallyNote}</textarea>
+    </div>
+  </div>`;
 
   // ── Lista de tripulaciones y posiciones ──
-  h+=`<div class="card"><h3>Tripulaciones y resultado general — Fecha ${curR}</h3>`;
+  h+=`<div class="card" style="padding:.75rem 1rem"><h3>Tripulaciones y resultado — Fecha ${curR}</h3>`;
   if(!res.crews.length){
-    h+=`<p style="color:var(--tm)">Sin tripulaciones en esta fecha todavía.</p>`;
+    h+=`<p style="color:var(--tm);font-size:13px">Sin tripulaciones en esta fecha todavía.</p>`;
   } else {
-    h+=`<p style="font-size:12px;color:var(--ts);margin-bottom:12px">Asigná la posición de cada tripulación. Las posiciones por categoría se calculan automáticamente.</p>`;
-    h+=`<div class="tw"><table><thead><tr><th>Pos</th><th>#</th><th>Piloto</th><th>Copiloto</th><th>Cat</th><th>Mover</th><th></th></tr></thead><tbody>`;
+    h+=`<div class="tw"><table style="font-size:12px"><thead><tr><th style="padding:6px 8px">Pos</th><th style="padding:6px 8px">#</th><th style="padding:6px 8px">Piloto</th><th style="padding:6px 8px">Copiloto</th><th style="padding:6px 8px">Cat</th><th style="padding:6px 8px">½</th><th style="padding:6px 8px">Estado</th><th style="padding:6px 8px"></th></tr></thead><tbody>`;
 
     const sortedCrews=[...res.crews].sort((a,b)=>{
       const ai=res.order.indexOf(a.id), bi=res.order.indexOf(b.id);
@@ -824,7 +839,10 @@ function renderRallyForm(){
           <button class="btn bsm" onclick="mUp('${crew.id}')"><i class="ti ti-chevron-up" aria-hidden="true"></i></button>
           <button class="btn bsm" onclick="mDown('${crew.id}')"><i class="ti ti-chevron-down" aria-hidden="true"></i></button>
         </td>
-        <td style="display:flex;gap:4px">
+        <td style="display:flex;gap:4px;align-items:center">
+          <label title="Media puntuación" style="display:flex;align-items:center;gap:3px;font-size:11px;color:var(--ts);cursor:pointer;white-space:nowrap">
+            <input type="checkbox" ${crew.half?'checked':''} onchange="toggleHalf('${crew.id}',this.checked)" style="width:auto;cursor:pointer"> ½
+          </label>
           <button class="btn bsm ${crew.status==='NT'?'bd2':''}" onclick="toggleNT('${crew.id}')" title="No terminó (clic para alternar)" style="${crew.status==='NT'?'font-weight:700;letter-spacing:.03em':''}">${crew.status==='NT'?'NT':'—'}</button>
           <button class="btn bsm bd2" onclick="removeCrew('${crew.id}')"><i class="ti ti-trash" aria-hidden="true"></i></button>
         </td>
@@ -908,6 +926,13 @@ function toggleNT(id){
   save(); renderResults();
 }
 
+function toggleHalf(id, val){
+  const res=ensureR(curR);
+  const crew=res.crews.find(c=>c.id===id); if(!crew) return;
+  crew.half = val;
+  save();
+}
+
 function setPos(crewId,val){
   if(!val) return;
   const res=ensureR(curR);
@@ -978,6 +1003,11 @@ function renderConfig(){
       rn.innerHTML+=`<div class="ig" style="margin-bottom:8px"><label>Fecha ${i+1}</label><input value="${(S.rallyNames||[])[i]||''}" oninput="setRallyName(${i},this.value)" placeholder="Ej: Rally de Cartago"></div>`;
     }
   }
+}
+function saveNote(rallyNum, val){
+  if(!S.rallyNotes) S.rallyNotes=Array(S.numRallies).fill('');
+  S.rallyNotes[rallyNum-1]=val;
+  save();
 }
 function setRallyName(i,v){
   if(!S.rallyNames) S.rallyNames=Array(S.numRallies).fill('');
@@ -1089,11 +1119,12 @@ function exportPDF(){
     const p=byRally[r];
     if(!p) return '—';
     if(p.nt) return '<span style="color:#991b1b;font-weight:700">NT</span>';
-    const race=p.race||0, ps=p.ps||0;
+    const race=p.race||0, ps=p.ps||0, half=p.half||false;
     if(!race && !ps) return '0';
-    // Show race points + (PS) separately — total col sums both
-    let cell=race>0?String(race):'0';
+    const fmtN=n=>Number.isInteger(n)?String(n):n.toFixed(1);
+    let cell=race>0?fmtN(race):'0';
     if(ps>0) cell+=` <span style="color:#166534;font-size:9px;font-weight:700">(+${ps})</span>`;
+    if(half) cell+=` <span style="color:#888;font-size:9px">½</span>`;
     return cell;
   };
 
