@@ -302,7 +302,8 @@ const PUBLIC_FILE_ID = '1cpOU95vn3olVa_5Rn7f92CQH4Qxuj9QI';
 async function loadPublicData() {
   try {
     syncStatus('Cargando datos...', 'ti-loader', 'var(--ta)');
-    const url = 'https://drive.google.com/uc?export=download&id=' + PUBLIC_FILE_ID;
+    // Use Drive API v3 with public API key — works without auth for publicly shared files
+    const url = `https://www.googleapis.com/drive/v3/files/${PUBLIC_FILE_ID}?alt=media&key=AIzaSyCNzZvhjuXwPiiY-7GDNu6GIulNz2LnP9Q`;
     const resp = await fetch(url);
     if(!resp.ok) throw new Error('HTTP ' + resp.status);
     const data = await resp.json();
@@ -313,8 +314,8 @@ async function loadPublicData() {
     const now = new Date().toLocaleString('es-CR');
     syncStatus('Actualizado · ' + now, 'ti-cloud-check', 'var(--tsu)');
   } catch(e) {
-    console.warn('Carga pública fallida, usando caché:', e.message);
-    syncStatus('Datos en caché local', 'ti-database', 'var(--tm)');
+    console.warn('Carga pública fallida:', e.message);
+    syncStatus('Error cargando datos', 'ti-cloud-x', 'var(--td)');
   }
 }
 
