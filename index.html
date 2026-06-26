@@ -262,12 +262,16 @@ function syncStatus(text, icon='ti-cloud', color='var(--ts)') {
 }
 
 function initDrive() {
+  // Load public data immediately — no auth required
+  loadPublicData();
+
+  // Init auth for admin (write) access
   gapi.load('client', async () => {
     await gapi.client.init({ discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'] });
     tokenClient = google.accounts.oauth2.initTokenClient({
-      redirect_uri: 'https://abarcacr.github.io/aora-rally-positions/',
       client_id: CLIENT_ID,
       scope: SCOPES,
+      redirect_uri: 'https://abarcacr.github.io/aora-rally-positions/',
       callback: async (resp) => {
         if(resp.error) { syncStatus('Error de autenticación', 'ti-cloud-x', 'var(--td)'); return; }
         document.getElementById('btn-signin').style.display='none';
@@ -275,20 +279,43 @@ function initDrive() {
         document.getElementById('btn-save').style.display='';
         document.querySelectorAll('.admin-only').forEach(el=>el.style.display='');
         driveReady = true;
-        syncStatus('Buscando datos en Drive...', 'ti-cloud-search');
+        syncStatus('Sesión iniciada', 'ti-cloud-check', 'var(--tsu)');
         await driveLoad();
       }
     });
-    // Try silent sign-in first
     const token = gapi.client.getToken();
-    if(!token) {
-      syncStatus('Iniciá sesión para sincronizar', 'ti-cloud-off', 'var(--tm)');
-      document.getElementById('btn-signin').style.display='';
-    } else {
+    if(token) {
       driveReady = true;
+      document.getElementById('btn-signin').style.display='none';
+      document.getElementById('btn-signout').style.display='';
+      document.getElementById('btn-save').style.display='';
+      document.querySelectorAll('.admin-only').forEach(el=>el.style.display='');
       await driveLoad();
+    } else {
+      document.getElementById('btn-signin').style.display='';
     }
   });
+}
+
+const PUBLIC_FILE_ID = '1cpOU95vn3olVa_5Rn7f92CQH4Qxuj9QI';
+
+async function loadPublicData() {
+  try {
+    syncStatus('Cargando datos...', 'ti-loader', 'var(--ta)');
+    const url = 'https://drive.google.com/uc?export=download&id=' + PUBLIC_FILE_ID;
+    const resp = await fetch(url);
+    if(!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    S = data;
+    try { localStorage.setItem(STORE, JSON.stringify(S)); } catch(e) {}
+    document.getElementById('cname').textContent = S.champName || 'Campeonato de Rally';
+    renderSt();
+    const now = new Date().toLocaleString('es-CR');
+    syncStatus('Actualizado · ' + now, 'ti-cloud-check', 'var(--tsu)');
+  } catch(e) {
+    console.warn('Carga pública fallida, usando caché:', e.message);
+    syncStatus('Datos en caché local', 'ti-database', 'var(--tm)');
+  }
 }
 
 function driveSignIn() {
