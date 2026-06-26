@@ -197,7 +197,7 @@ tbody tr:hover td{background:#f8fafc}
       <button class="btn bsm" id="btn-signin" onclick="driveSignIn()" style="display:none"><i class="ti ti-lock" aria-hidden="true"></i> Admin</button>
       <button class="btn bsm" id="btn-signout" onclick="driveSignOut()" style="display:none"><i class="ti ti-logout" aria-hidden="true"></i> Salir de admin</button>
       <button class="btn bsm" id="btn-save" onclick="driveSave()" style="display:none"><i class="ti ti-device-floppy" aria-hidden="true"></i> Guardar ahora</button>
-      <button class="btn bsm" onclick="hardRefresh()"><i class="ti ti-refresh" aria-hidden="true"></i> Actualizar</button>
+      <button class="btn bsm" onclick="refreshNow()"><i class="ti ti-refresh" aria-hidden="true"></i> Actualizar</button>
     </div>
   </div>
   <div class="content">
@@ -310,7 +310,7 @@ let accessGranted = false;
 const ACCESS_PASSWORD_KEY = 'rally_access_password';
 const ACCESS_GRANTED_KEY = 'rally_access_granted';
 const DEFAULT_ACCESS_PASSWORD = 'rally2026';
-const APP_VERSION = '2026-06-26-1045';
+const APP_VERSION = '2026-06-26-1135';
 const SYNC_ENDPOINT = 'https://script.google.com/macros/s/AKfycbyJqVD9XWlL7tLTn5IFSG91sNuPU7ozD1xO9am04DVDzYliGgzYhjn-dsVEFGI-rBA/exec';
 const SYNC_ENDPOINT_KEY = 'rally_sync_endpoint';
 const ADMIN_PASSWORD_SESSION_KEY = 'rally_admin_password_session';
@@ -357,6 +357,13 @@ function hardRefresh(){
   url.searchParams.set('appv', APP_VERSION);
   url.searchParams.set('refresh', String(Date.now()));
   window.location.replace(url.toString());
+}
+function refreshNow(){
+  if(isSharedMode()){
+    sharedLoad({manual:true});
+  } else {
+    hardRefresh();
+  }
 }
 function showAccessOverlay(){
   document.getElementById('access-overlay').style.display='flex';
@@ -491,25 +498,25 @@ function sharedJsonp(action, params={}){
   });
 }
 
-async function sharedLoad(){
+async function sharedLoad(options={}){
   if(!isSharedMode()){
     setLocalMode();
     return;
   }
   try{
-    syncStatus('Cargando datos compartidos...', 'ti-cloud-download', 'var(--ta)');
+    if(!options.quiet) syncStatus('Cargando datos compartidos...', 'ti-cloud-download', 'var(--ta)');
     const res=await sharedJsonp('load');
     if(res?.ok && res.data){
       S=res.data;
       try{ localStorage.setItem(STORE, JSON.stringify(S)); }catch(e){}
       document.getElementById('cname').textContent=S.champName||'Campeonato de Rally';
       ({standings:renderSt, people:renderPeople, results:renderResults, config:renderConfig})[currentSection]?.();
-      syncStatus('Datos compartidos actualizados', 'ti-cloud-check', 'var(--tsu)');
+      if(!options.quiet) syncStatus('Datos compartidos actualizados', 'ti-cloud-check', 'var(--tsu)');
     } else {
       syncStatus('Sin datos compartidos todavía', 'ti-cloud-off', 'var(--tw)');
     }
   } catch(e){
-    syncStatus('No se pudo cargar compartido · usando copia local', 'ti-cloud-off', 'var(--tw)');
+    if(!options.quiet) syncStatus('No se pudo cargar compartido · usando copia local', 'ti-cloud-off', 'var(--tw)');
   }
 }
 
@@ -533,11 +540,22 @@ async function sharedSaveNow(){
   }
   try{
     try{ localStorage.setItem(STORE, JSON.stringify(S)); }catch(e){}
-    await sharedPost({action:'save', password, data:S});
+    const uploadId=Date.now().toString(36)+'_'+Math.random().toString(36).slice(2);
+    const json=JSON.stringify(S);
+    const chunks=json.match(/[\s\S]{1,1200}/g) || ['{}'];
+    let res=await sharedJsonp('saveStart', {password, uploadId, total:String(chunks.length)});
+    if(!res?.ok) throw new Error(res?.error || 'No se pudo iniciar guardado.');
+    for(let i=0;i<chunks.length;i++){
+      syncStatus(`Guardando ${i+1}/${chunks.length}...`, 'ti-cloud-upload', 'var(--ta)');
+      res=await sharedJsonp('saveChunk', {password, uploadId, index:String(i), chunk:chunks[i]});
+      if(!res?.ok) throw new Error(res?.error || `No se pudo guardar parte ${i+1}.`);
+    }
+    res=await sharedJsonp('saveCommit', {password, uploadId, total:String(chunks.length)});
+    if(!res?.ok) throw new Error(res?.error || 'No se pudo confirmar guardado.');
     const now=new Date().toLocaleString('es-CR');
     syncStatus(`Cambios enviados · ${now}`, 'ti-cloud-upload', 'var(--tsu)');
   } catch(e){
-    syncStatus('No se pudo enviar · copia local guardada', 'ti-cloud-off', 'var(--tw)');
+    syncStatus(`No se pudo enviar · ${e.message}`, 'ti-cloud-off', 'var(--tw)');
   }
 }
 
@@ -1170,11 +1188,16 @@ function changeAccessPassword(){
     return;
   }
   if(isSharedMode()){
-    sharedPost({action:'changePassword', password:cur, newPassword:next});
-    sessionStorage.setItem(ADMIN_PASSWORD_SESSION_KEY, next);
-    ['cfg-pass-current','cfg-pass-new','cfg-pass-confirm'].forEach(id=>document.getElementById(id).value='');
-    syncStatus('Cambio de clave enviado', 'ti-key', 'var(--tsu)');
-    alert('Cambio enviado. Si la clave actual era correcta, Apps Script ya usa la nueva clave.');
+    sharedJsonp('changePassword', {password:cur, newPassword:next}).then(res=>{
+      if(!res?.ok) throw new Error(res?.error || 'No se pudo cambiar la clave.');
+      sessionStorage.setItem(ADMIN_PASSWORD_SESSION_KEY, next);
+      ['cfg-pass-current','cfg-pass-new','cfg-pass-confirm'].forEach(id=>document.getElementById(id).value='');
+      syncStatus('Clave admin actualizada', 'ti-key', 'var(--tsu)');
+      alert('Clave actualizada.');
+    }).catch(e=>{
+      syncStatus(`No se pudo cambiar clave · ${e.message}`, 'ti-key-off', 'var(--tw)');
+      alert(`No se pudo cambiar la clave: ${e.message}`);
+    });
     return;
   }
   if(cur !== getAccessPassword()){
@@ -1408,6 +1431,9 @@ renderSt();
 // Initialize the safe local-only mode
 window.addEventListener('load', ()=>{
   initDrive();
+  setInterval(()=>{
+    if(isSharedMode() && !accessGranted) sharedLoad({quiet:true});
+  }, 60000);
 });
 </script>
 </body>
